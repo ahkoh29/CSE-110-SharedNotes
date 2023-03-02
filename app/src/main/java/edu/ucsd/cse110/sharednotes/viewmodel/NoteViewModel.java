@@ -7,12 +7,14 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 
 import edu.ucsd.cse110.sharednotes.model.Note;
+import edu.ucsd.cse110.sharednotes.model.NoteAPI;
 import edu.ucsd.cse110.sharednotes.model.NoteDatabase;
 import edu.ucsd.cse110.sharednotes.model.NoteRepository;
 
 public class NoteViewModel extends AndroidViewModel {
     private LiveData<Note> note;
     private final NoteRepository repo;
+    private NoteAPI noteAPI;
 
     public NoteViewModel(@NonNull Application application) {
         super(application);
@@ -20,10 +22,13 @@ public class NoteViewModel extends AndroidViewModel {
         var db = NoteDatabase.provide(context);
         var dao = db.getDao();
         this.repo = new NoteRepository(dao);
+        this.noteAPI = new NoteAPI();
     }
 
     public LiveData<Note> getNote(String title) {
         // TODO: use getSynced here instead?
+        note = repo.getSynced(title);
+    // noteAPI.getNote(title);
         // The returned live data should update whenever there is a change in
         // the database, or when the server returns a newer version of the note.
         // Polling interval: 3s.
