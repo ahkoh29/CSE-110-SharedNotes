@@ -19,13 +19,14 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+
 public class NoteRepository {
     private final NoteDao dao;
     private NoteAPI noteAPI;
 
     private MutableLiveData<Note> noteMutableLiveData;
     private ScheduledFuture<?> clockFuture;
-    //private static TimeService instance;
+    private ScheduledFuture<?> poller; // what could this be for... hmm?
 
     public NoteRepository(NoteDao dao) {
         this.dao = dao;
@@ -52,11 +53,9 @@ public class NoteRepository {
 
         Observer<Note> updateFromRemote = theirNote -> {
             var ourNote = note.getValue();
-            if (theirNote == null) {
-                return; // do nothing
-            }
-            if (ourNote == null || ourNote.updatedAt < theirNote.updatedAt) {
-                Log.i("upsert", "their note");
+
+            if (theirNote == null) return; // do nothing
+            if (ourNote == null || ourNote.version < theirNote.version) {
                 upsertLocal(theirNote);
             }
         };
@@ -86,7 +85,7 @@ public class NoteRepository {
     }
 
     public void upsertLocal(Note note) {
-        note.updatedAt = Instant.now().getEpochSecond();
+        note.version = note.version + 1;
         dao.upsert(note);
     }
 
@@ -114,8 +113,12 @@ public class NoteRepository {
             this.noteMutableLiveData.postValue(noteAPI.getNote(title));
         }, 0, 3000, TimeUnit.MILLISECONDS);
 
-        // Start by fetching the note from the server _once_ and feeding it into MutableLiveData.
-        // Then, set up a background thread that will poll the server every 3 seconds.
+        // Cancel any previous poller if it exists.
+        if (this.poller != null && !this.poller.isCancelled()) {
+            poller.cancel(true);
+        }
+
+        // Set up a background thread that will poll the server every 3 seconds.
 
         // You may (but don't have to) want to cache the LiveData's for each title, so that
         // you don't create a new polling thread every time you call getRemote with the same title.

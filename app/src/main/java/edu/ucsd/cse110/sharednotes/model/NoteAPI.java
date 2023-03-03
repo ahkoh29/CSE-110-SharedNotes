@@ -12,9 +12,11 @@ import org.json.JSONException;
 
 import java.sql.Time;
 
+import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 
 import java.sql.Timestamp;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -34,6 +36,8 @@ public class NoteAPI {
 
     private volatile static NoteAPI instance = null;
 
+    public static final MediaType JSON
+            = MediaType.get("application/json; charset=utf-8");
     private OkHttpClient client;
 
     public NoteAPI() {
@@ -105,15 +109,17 @@ public class NoteAPI {
         // URLs cannot contain spaces, so we replace them with %20.
         String title = note.title.replace(" ", "%20");
 
+        String json = new Gson().toJson(Map.of("content", note.content, "version", note.version));
+        RequestBody requestBody = RequestBody.create(json, JSON);
         Log.i("put note", title);
-        String time = String.valueOf(note.updatedAt);
+        String time = String.valueOf(note.version);
         Log.i("put note title" , title);
         Log.i("put note updated" , time);
         Log.i("put note content" , note.content);
-        RequestBody requestBody = new MultipartBody.Builder()
-                .addFormDataPart("content", note.content)
-                .addFormDataPart("updated_at", time)
-                .build();
+//        RequestBody requestBody = new MultipartBody.Builder()
+//                .addFormDataPart("content", note.content)
+//                .addFormDataPart("updated_at", time)
+//                .build();
         var request = new Request.Builder()
                 .url("https://sharednotes.goto.ucsd.edu/notes/" + title)
                 .method("PUT", requestBody)
