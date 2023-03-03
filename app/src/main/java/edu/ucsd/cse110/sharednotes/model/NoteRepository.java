@@ -1,15 +1,23 @@
 package edu.ucsd.cse110.sharednotes.model;
 
+import android.util.Log;
+
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MediatorLiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
 
+import org.json.JSONException;
+
+import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class NoteRepository {
     private final NoteDao dao;
@@ -39,12 +47,16 @@ public class NoteRepository {
      * @param title the title of the note
      * @return a LiveData object that will be updated when the note is updated locally or remotely.
      */
-    public LiveData<Note> getSynced(String title) {
+    public LiveData<Note> getSynced(String title) throws ExecutionException, InterruptedException, TimeoutException {
         var note = new MediatorLiveData<Note>();
 
         Observer<Note> updateFromRemote = theirNote -> {
             var ourNote = note.getValue();
+            if (theirNote == null) {
+                return; // do nothing
+            }
             if (ourNote == null || ourNote.updatedAt < theirNote.updatedAt) {
+                Log.i("upsert", "their note");
                 upsertLocal(theirNote);
             }
         };
@@ -57,7 +69,7 @@ public class NoteRepository {
         return note;
     }
 
-    public void upsertSynced(Note note) {
+    public void upsertSynced(Note note) throws JSONException {
         upsertLocal(note);
         upsertRemote(note);
     }
@@ -74,7 +86,7 @@ public class NoteRepository {
     }
 
     public void upsertLocal(Note note) {
-        note.updatedAt = System.currentTimeMillis();
+        note.updatedAt = Instant.now().getEpochSecond();
         dao.upsert(note);
     }
 
@@ -90,17 +102,18 @@ public class NoteRepository {
     // ==============
 
 
-    public LiveData<Note> getRemote(String title) {
+    public LiveData<Note> getRemote(String title) throws ExecutionException, InterruptedException, TimeoutException {
 
         // TODO: Implement getRemote!
         // TODO: Set up polling background thread (MutableLiveData?)
         // TODO: Refer to TimerService from https://github.com/DylanLukes/CSE-110-WI23-Demo5-V2.
-
-        this.noteMutableLiveData.postValue(noteAPI.getNote(title));
+        Future<Note> future = noteAPI.getNoteAsync(title);
+        this.noteMutableLiveData.postValue(future.get(3, TimeUnit.SECONDS));
         var executor = Executors.newSingleThreadScheduledExecutor();
         this.clockFuture = executor.scheduleAtFixedRate(() -> {
             this.noteMutableLiveData.postValue(noteAPI.getNote(title));
         }, 0, 3000, TimeUnit.MILLISECONDS);
+
         // Start by fetching the note from the server _once_ and feeding it into MutableLiveData.
         // Then, set up a background thread that will poll the server every 3 seconds.
 
@@ -112,8 +125,16 @@ public class NoteRepository {
         //throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    public void upsertRemote(Note note) {
+    public void upsertRemote(Note note) throws JSONException {
         // TODO: Implement upsertRemote!
-        throw new UnsupportedOperationException("Not implemented yet");
+        var executor = Executors.newSingleThreadScheduledExecutor();
+        executor.submit(()->{
+            try {
+                noteAPI.putNote(note);
+            } catch (JSONException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        //throw new UnsupportedOperationException("Not implemented yet");
     }
 }

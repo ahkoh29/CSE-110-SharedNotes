@@ -6,6 +6,11 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 
+import org.json.JSONException;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+
 import edu.ucsd.cse110.sharednotes.model.Note;
 import edu.ucsd.cse110.sharednotes.model.NoteAPI;
 import edu.ucsd.cse110.sharednotes.model.NoteDatabase;
@@ -25,7 +30,7 @@ public class NoteViewModel extends AndroidViewModel {
         this.noteAPI = new NoteAPI();
     }
 
-    public LiveData<Note> getNote(String title) {
+    public LiveData<Note> getNote(String title) throws ExecutionException, InterruptedException, TimeoutException {
         // TODO: use getSynced here instead?
         note = repo.getSynced(title);
     // noteAPI.getNote(title);
@@ -38,8 +43,9 @@ public class NoteViewModel extends AndroidViewModel {
         return note;
     }
 
-    public void save(Note note) {
+    public void save(Note note) throws JSONException {
         // TODO: try to upload the note to the server.
+        repo.upsertSynced(note);
         repo.upsertLocal(note);
     }
 }
